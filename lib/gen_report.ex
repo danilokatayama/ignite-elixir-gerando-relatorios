@@ -9,6 +9,42 @@ defmodule GenReport do
 
   def build(), do: {:error, "Insira o nome de um arquivo"}
 
+  def build_from_many(filenames) when not is_list(filenames) do
+    {:error, "Please, provide a list of strings"}
+  end
+
+  def build_from_many(filenames) do
+    result =
+      filenames
+      |> Task.async_stream(&build/1)
+      |> Enum.reduce(
+        report_acc(),
+        fn {:ok,
+            %{
+              "all_hours" => all_hours,
+              "hours_per_month" => hours_per_month,
+              "hours_per_year" => hours_per_year
+            }},
+           report ->
+          all_hours = merge(all_hours, report["all_hours"])
+
+          hours_per_month =
+            Map.merge(hours_per_month, report["hours_per_month"], fn _k, v1, v2 ->
+              merge(v1, v2)
+            end)
+
+          hours_per_year =
+            Map.merge(hours_per_year, report["hours_per_year"], fn _k, v1, v2 ->
+              merge(v1, v2)
+            end)
+
+          build_report(all_hours, hours_per_month, hours_per_year)
+        end
+      )
+
+    {:ok, result}
+  end
+
   defp sum_values([name, hours, _day, month, year], %{
          "all_hours" => all_hours,
          "hours_per_month" => hours_per_month,
